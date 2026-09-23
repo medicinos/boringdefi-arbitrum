@@ -14,6 +14,10 @@ And withdrawals got harder to break: if one venue cannot pay out (paused, fully 
 
 The keeper holds only `KEEPER_ROLE`: it can move USDC between allowlisted venues within those rules and a per-call cap. It has no function that sends funds anywhere else. Only share owners withdraw.
 
+## Live on Arbitrum One
+
+**Vault: [`0x3cA6Ee7A5d64BCF3f23955c1ed9A66E332e60672`](https://arbiscan.io/address/0x3cA6Ee7A5d64BCF3f23955c1ed9A66E332e60672)** - source verified on Sourcify. All addresses and parameters: [`deployments/arbitrum-one.md`](deployments/arbitrum-one.md). App: [boringdefi.com/arbitrum](https://boringdefi.com/arbitrum/).
+
 ## Venues (Arbitrum One, verified on-chain 2026-09-23)
 
 | Venue | Contract | Adapter |
