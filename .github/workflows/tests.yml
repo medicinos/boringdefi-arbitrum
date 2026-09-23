@@ -1,0 +1,29 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: forge install foundry-rs/forge-std@v1.9.7 OpenZeppelin/openzeppelin-contracts@v5.1.0 --no-git
+      - run: forge build --sizes
+      - run: forge test --no-match-path "test/fork/*" -vv
+  fork:
+    runs-on: ubuntu-latest
+    continue-on-error: true   # public Arbitrum RPC can rate-limit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: forge install foundry-rs/forge-std@v1.9.7 OpenZeppelin/openzeppelin-contracts@v5.1.0 --no-git
+      - run: forge test --match-path "test/fork/*" -vv
+        env:
+          ARB_RPC_URL: ${{ secrets.ARB_RPC_URL || 'https://arb1.arbitrum.io/rpc' }}
+  keeper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pytest
+      - run: python -m pytest keeper -q
