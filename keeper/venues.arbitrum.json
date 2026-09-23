@@ -1,0 +1,18 @@
+{
+  "_comment": "Venue contract (what the adapter wraps) -> DefiLlama pool id. Checked 2026-09-23.",
+  "venues": {
+    "0x794a61358D6845594F94dc1DB02A252b5b4814aD": {"name": "Aave v3 USDC", "llama_pool": "d9fa8e14-0447-4207-9ae8-7810199dfa1f"},
+    "0x1A996cb54bb95462040408C06122D45D6Cdb6096": {"name": "Fluid fUSDC", "llama_pool": "4c45cc9e-e1a4-43c9-8a3d-687d96abb07c"},
+    "0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf": {"name": "Compound III cUSDCv3", "llama_pool": "d9c395b9-00d0-4426-a6b3-572a6dd68e54"},
+    "0x5c0C306Aaa9F877de636f4d5822cA9F2E81563BA": {"name": "Morpho Steakhouse bbqUSDC", "llama_pool": "c13f1940-9965-4eee-b7e8-af785591ceda"},
+    "0x7e97fa6893871A2751B5fE961978DCCb2c201E65": {"name": "Morpho Gauntlet gtUSDCc", "llama_pool": "aebb9f47-d15b-4671-8fe3-debb6e913ae2"}
+  },
+  "rules": {
+    "min_tvl_usd": 2000000,
+    "outlier_mult": 2.0,
+    "cap_margin_bps": 100,
+    "idle_margin_bps": 100,
+    "min_gain_bps": 10,
+    "min_move": 100000000
+  }
+}
