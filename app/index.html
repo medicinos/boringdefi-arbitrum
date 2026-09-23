@@ -1,1 +1,576 @@
-placeholder
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BoringDeFi on Arbitrum - USDC yield the contract keeps boring</title>
+<meta name="description" content="Non-custodial USDC vault on Arbitrum One. Spread across Aave, Fluid, Compound and Morpho, with concentration, idle-buffer and exit-liquidity rules enforced on-chain." />
+<meta name="theme-color" content="#FAFAF8" />
+<meta property="og:title" content="BoringDeFi on Arbitrum" />
+<meta property="og:description" content="USDC yield where the contract refuses to park money anywhere it couldn't get back today." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cstyle%3Erect%7Bfill:%230F7A4F%7D@media(prefers-color-scheme:dark)%7Brect%7Bfill:%2334A36F%7D%7D%3C/style%3E%3Crect width='32' height='32' rx='8'/%3E%3Cpath d='M9 20h14M9 14h9' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E" />
+<!-- Subresource Integrity on the money path: a tampered ethers build (it builds the
+     approve / deposit / redeem transactions) is refused by the browser. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"
+        integrity="sha384-6Zl0Pc8zjSz8KvmNeXRvUQgY4ryFb+BwDvKCmLYcBME0joAaru491tQgi9B7zsMM"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    color-scheme: light;
+    --bg:#FAFAF8; --card:#FFFFFF; --sunk:#F3F4F1;
+    --ink:#101828; --ink-2:#475467; --ink-3:#667085;
+    --line:rgba(16,24,40,.08); --line-2:rgba(16,24,40,.14);
+    --accent:#0F7A4F; --accent-ink:#0B5F3D; --accent-soft:#E7F3EC; --accent-line:#BFE3CF;
+    --arb:#1B4ADD;
+    --good:#15803D; --warn:#B45309; --warn-soft:#FFF7E6; --bad:#B42318; --bad-soft:#FEF3F2;
+    --shadow-xs:0 1px 2px rgba(16,24,40,.05);
+    --shadow-sm:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.10);
+    --shadow-md:0 2px 4px rgba(16,24,40,.06),0 4px 8px rgba(16,24,40,.10);
+    --ease-out:cubic-bezier(.23,1,.32,1);
+    --r-sm:10px; --r-lg:16px;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  html{-webkit-text-size-adjust:100%}
+  @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  ::selection{background:#CDEBD9;color:var(--ink)}
+  .num{font-variant-numeric:tabular-nums lining-nums}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  a{color:var(--accent-ink);text-decoration:underline;text-decoration-color:rgba(15,122,79,.35);text-underline-offset:3px}
+  @media (hover:hover) and (pointer:fine){a:hover{text-decoration-color:currentColor}}
+  :focus-visible{outline:0;box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--accent);border-radius:8px}
+  code,.mono{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.875em}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:20;background:rgba(250,250,248,.82);
+    backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);
+    box-shadow:0 1px 0 var(--line)}
+  @media (prefers-reduced-transparency:reduce){nav{background:var(--bg);backdrop-filter:none}}
+  .nav-in{max-width:1080px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:12px}
+  .logo{font-size:19px;font-weight:800;letter-spacing:-.02em;color:var(--ink);text-decoration:none}
+  .logo b{color:var(--accent)}
+  .chain{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--arb);
+    background:#EEF2FD;padding:4px 10px;border-radius:999px}
+  .chain i{width:6px;height:6px;border-radius:50%;background:var(--arb);display:block}
+  .grow{flex:1}
+
+  .btn{appearance:none;border:0;border-radius:var(--r-sm);padding:12px 16px;min-height:44px;
+    font:600 15px/1 'Inter',system-ui,sans-serif;cursor:pointer;white-space:nowrap;
+    background:var(--accent);color:#fff;
+    transition:transform 160ms var(--ease-out),background-color 150ms ease,box-shadow 150ms ease}
+  .btn:active{transform:scale(.97)}
+  @media (hover:hover) and (pointer:fine){.btn:hover{background:var(--accent-ink)}}
+  .btn.quiet{background:var(--card);color:var(--ink);box-shadow:0 0 0 1px var(--line-2),var(--shadow-xs)}
+  @media (hover:hover) and (pointer:fine){.btn.quiet:hover{background:var(--sunk)}}
+  .btn:disabled{opacity:.55;cursor:default;transform:none}
+  .btn.sm{min-height:36px;padding:9px 12px;font-size:14px}
+
+  /* hero */
+  .hero{display:grid;grid-template-columns:1.15fr .85fr;gap:48px;align-items:start;padding:72px 0 56px}
+  @media (max-width:880px){.hero{grid-template-columns:minmax(0,1fr);gap:32px;padding:40px 0 32px}}
+  .hero>*{min-width:0}
+  @media (max-width:420px){.chain{font-size:11px;padding:4px 8px;white-space:nowrap}.nav-in{gap:8px}}
+  h1{font-size:clamp(2.25rem,1.3rem + 3.2vw,3.5rem);line-height:1.06;letter-spacing:-.03em;font-weight:800;margin:0 0 20px;text-wrap:balance}
+  h1 em{font-style:normal;color:var(--accent)}
+  .lede{font-size:1.125rem;color:var(--ink-2);max-width:52ch;margin:0 0 28px}
+  .facts{display:flex;flex-wrap:wrap;gap:10px 22px;margin:0;padding:0;list-style:none;color:var(--ink-2);font-size:.9375rem}
+  .facts li{display:flex;align-items:center;gap:8px}
+  .facts svg{width:16px;height:16px;color:var(--accent);flex-shrink:0}
+
+  .stats{display:grid;grid-template-columns:repeat(4,auto);justify-content:start;gap:8px 40px;margin-top:40px}
+  @media (max-width:560px){.stats{grid-template-columns:repeat(2,auto);gap:16px 32px}}
+  .stat .v{font-size:1.5rem;font-weight:700;letter-spacing:-.02em}
+  .stat .k{font-size:.8125rem;color:var(--ink-3)}
+
+  /* deposit card */
+  .card{background:var(--card);border-radius:var(--r-lg);box-shadow:0 0 0 1px var(--line),var(--shadow-md);padding:24px}
+  .card h2{font-size:1.125rem;letter-spacing:-.01em;margin:0 0 4px}
+  .card .muted{color:var(--ink-3);font-size:.875rem;margin:0}
+  .tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--sunk);border-radius:12px;padding:4px;margin:20px 0 16px}
+  .tab{appearance:none;border:0;background:transparent;border-radius:9px;min-height:40px;font:600 14px/1 'Inter',system-ui,sans-serif;color:var(--ink-2);cursor:pointer;transition:background-color 150ms ease,color 150ms ease}
+  .tab[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:var(--shadow-sm)}
+  label.fl{display:flex;justify-content:space-between;font-size:.8125rem;color:var(--ink-3);margin-bottom:6px}
+  label.fl button{appearance:none;border:0;background:none;color:var(--accent-ink);font:600 13px/1 'Inter',system-ui,sans-serif;cursor:pointer;padding:4px}
+  .field{display:flex;align-items:center;background:var(--card);border-radius:var(--r-sm);box-shadow:0 0 0 1px var(--line-2);padding:0 14px;transition:box-shadow 150ms ease}
+  .field:focus-within{box-shadow:0 0 0 2px var(--accent)}
+  .field input{flex:1;border:0;outline:0;background:transparent;font:600 1.25rem/1 'Inter',system-ui,sans-serif;padding:14px 0;color:var(--ink);font-variant-numeric:tabular-nums;min-width:0}
+  .field span{color:var(--ink-3);font-weight:600;font-size:.9375rem}
+  .card .btn.full{width:100%;margin-top:14px}
+  .rows{margin:16px 0 0;padding:0;display:grid;gap:8px}
+  .rows div{display:flex;justify-content:space-between;font-size:.875rem;color:var(--ink-2)}
+  .rows dd{margin:0;color:var(--ink);font-weight:600}
+  .rows dt{margin:0}
+  .msg{font-size:.875rem;min-height:1.4em;margin:12px 0 0}
+  .msg.ok{color:var(--good)} .msg.bad{color:var(--bad)} .msg.info{color:var(--ink-3)}
+  .pending{display:flex;gap:10px;align-items:flex-start;background:var(--warn-soft);color:#7A4A0C;border-radius:12px;padding:12px 14px;font-size:.875rem;margin-top:16px}
+  .pending svg{width:16px;height:16px;flex-shrink:0;margin-top:2px}
+
+  /* sections */
+  section{padding:56px 0}
+  @media (max-width:640px){section{padding:40px 0}}
+  h2.sec{font-size:clamp(1.5rem,1.1rem + 1.2vw,1.875rem);letter-spacing:-.02em;line-height:1.2;margin:0 0 8px}
+  .sec-sub{color:var(--ink-2);max-width:62ch;margin:0 0 28px}
+
+  /* venues: the signature element */
+  .venues{background:var(--card);border-radius:var(--r-lg);box-shadow:0 0 0 1px var(--line),var(--shadow-sm);overflow:hidden}
+  .vhead,.vrow{display:grid;grid-template-columns:minmax(170px,1.3fr) 2fr 110px 110px 150px;gap:16px;align-items:center;padding:14px 20px}
+  .vhead{font-size:.75rem;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;background:var(--sunk)}
+  .vrow+.vrow{box-shadow:inset 0 1px 0 var(--line)}
+  .vname{font-weight:600;letter-spacing:-.005em}
+  .vname small{display:block;font-weight:400;color:var(--ink-3);font-size:.8125rem}
+  .r{text-align:right}
+  .bar{position:relative;height:10px;border-radius:5px;background:var(--sunk)}
+  .bar .fill{position:absolute;inset:0 auto 0 0;width:100%;border-radius:5px;background:var(--accent);transform-origin:left;
+    transition:transform 600ms var(--ease-out)}
+  .bar .cap{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);border-radius:1px}
+  .bar-l{display:flex;justify-content:space-between;font-size:.75rem;color:var(--ink-3);margin-top:6px}
+  .exit{display:inline-flex;align-items:center;gap:6px;font-size:.875rem;font-weight:600}
+  .exit svg{width:16px;height:16px}
+  .exit.ok{color:var(--good)} .exit.no{color:var(--bad)} .exit.na{color:var(--ink-3);font-weight:500}
+  @media (max-width:880px){
+    .vhead{display:none}
+    .vrow{grid-template-columns:1fr auto;gap:8px 16px}
+    .vrow .bcell{grid-column:1 / -1;order:3}
+    .vrow .apy{order:2}
+    .vrow .size{display:none}
+    .vrow .ex{grid-column:1 / -1;order:4}
+  }
+  .vfoot{padding:12px 20px;font-size:.8125rem;color:var(--ink-3);box-shadow:inset 0 1px 0 var(--line);display:flex;flex-wrap:wrap;gap:6px 20px;justify-content:space-between}
+  .skel{display:inline-block;height:.9em;width:5ch;border-radius:4px;background:linear-gradient(90deg,var(--sunk),#ECEDEA,var(--sunk));background-size:200% 100%}
+  @media (prefers-reduced-motion:no-preference){.skel{animation:sh 1.4s linear infinite}}
+  @keyframes sh{to{background-position:-200% 0}}
+
+  /* rules */
+  .rules{display:grid;grid-template-columns:1fr;gap:0;background:var(--card);border-radius:var(--r-lg);box-shadow:0 0 0 1px var(--line),var(--shadow-sm)}
+  .rule{display:grid;grid-template-columns:1fr 160px;gap:24px;padding:24px;align-items:center}
+  .rule+.rule{box-shadow:inset 0 1px 0 var(--line)}
+  .rule h3{font-size:1.0625rem;margin:0 0 4px;letter-spacing:-.01em}
+  .rule p{margin:0;color:var(--ink-2);max-width:62ch;font-size:.9375rem}
+  .rule .val{text-align:right}
+  .rule .val b{display:block;font-size:1.875rem;letter-spacing:-.02em;line-height:1.1}
+  .rule .val span{font-size:.8125rem;color:var(--ink-3)}
+  @media (max-width:640px){.rule{grid-template-columns:1fr;gap:12px}.rule .val{text-align:left}}
+
+  /* contracts */
+  .contracts{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+  @media (max-width:760px){.contracts{grid-template-columns:1fr}}
+  .addr{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+  .addr li{display:flex;justify-content:space-between;gap:12px;font-size:.9375rem;align-items:baseline}
+  .addr li span{color:var(--ink-2)}
+  .honest{background:var(--card);border-radius:var(--r-lg);box-shadow:0 0 0 1px var(--line);padding:20px;font-size:.9375rem;color:var(--ink-2)}
+  .honest h3{margin:0 0 8px;font-size:1rem;color:var(--ink)}
+  .honest p{margin:0 0 10px;max-width:62ch}
+  footer{padding:32px 0 48px;color:var(--ink-3);font-size:.875rem}
+  footer .wrap{display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between;box-shadow:0 -1px 0 var(--line);padding-top:24px}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-in">
+    <a class="logo" href="https://boringdefi.com">boring<b>defi</b></a>
+    <span class="chain"><i></i>Arbitrum One</span>
+    <span class="grow"></span>
+    <button class="btn sm quiet" id="connectBtn" type="button">Connect wallet</button>
+  </div>
+</nav>
+
+<main class="wrap">
+  <div class="hero">
+    <div>
+      <h1>USDC yield that the contract keeps <em>boring</em>.</h1>
+      <p class="lede">Deposit USDC on Arbitrum. The vault spreads it across Aave, Fluid, Compound and Morpho - and refuses, on-chain, to leave your money anywhere it couldn't get back today.</p>
+      <ul class="facts">
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Only you can withdraw</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="feeFact">1% fee on profit only</span></li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>No token, no points, no lockup</li>
+      </ul>
+      <div class="stats" aria-live="polite">
+        <div class="stat"><div class="v num" id="sTvl"><span class="skel"></span></div><div class="k">in the vault</div></div>
+        <div class="stat"><div class="v num" id="sApy"><span class="skel"></span></div><div class="k" id="sApyK">blended base APY</div></div>
+        <div class="stat"><div class="v num" id="sIdle"><span class="skel"></span></div><div class="k">kept as cash</div></div>
+        <div class="stat"><div class="v num" id="sVenues">5</div><div class="k">venues</div></div>
+      </div>
+    </div>
+
+    <form class="card" id="acct" onsubmit="return false">
+      <h2>Your position</h2>
+      <p class="muted" id="acctSub">Connect a wallet on Arbitrum One to deposit.</p>
+      <div class="tabs" role="tablist">
+        <button class="tab" type="button" role="tab" aria-selected="true" id="tabDep">Deposit</button>
+        <button class="tab" type="button" role="tab" aria-selected="false" id="tabWd">Withdraw</button>
+      </div>
+      <label class="fl" for="amt"><span id="amtLabel">Amount</span><button type="button" id="maxBtn">Max</button></label>
+      <div class="field"><input id="amt" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="0.00" aria-describedby="msg"><span>USDC</span></div>
+      <button class="btn full" id="actBtn" type="submit">Connect wallet</button>
+      <p class="msg info" id="msg" role="status"></p>
+      <dl class="rows">
+        <div><dt>Wallet USDC</dt><dd class="num" id="wBal">-</dd></div>
+        <div><dt>In the vault (after fee)</dt><dd class="num" id="wPos">-</dd></div>
+        <div><dt>Profit so far</dt><dd class="num" id="wProfit">-</dd></div>
+      </dl>
+      <div class="pending" id="notDeployed" hidden>
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5v4M8 11h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <span>The Arbitrum vault address is not set on this page yet, so deposits are off. The venue data below is live from Arbitrum One.</span>
+      </div>
+    </form>
+  </div>
+
+  <section id="venues" aria-labelledby="vTitle">
+    <h2 class="sec" id="vTitle">Where the money is, and whether it can come back</h2>
+    <p class="sec-sub">Read straight from the contracts on every page load. The bar is the vault's share in each venue; the dark tick is the most that venue may ever hold. "Exit now" is what the venue could pay back this minute.</p>
+    <div class="venues" id="vtable">
+      <div class="vhead"><span>Venue</span><span>Share of vault · cap</span><span class="r">Base APY</span><span class="r">Venue size</span><span class="r">Exit now</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="rTitle">
+    <h2 class="sec" id="rTitle">Three rules the contract enforces after every move</h2>
+    <p class="sec-sub">The keeper that rebalances cannot withdraw anyone's money - it can only move USDC between the venues above, within these limits. If a move would break a rule, the transaction reverts.</p>
+    <div class="rules">
+      <div class="rule">
+        <div><h3>No single venue gets too much</h3><p>Every venue has its own ceiling as a share of the vault. A venue without a ceiling is closed. Cap values are in the table above.</p></div>
+        <div class="val"><b class="num" id="rCap">40%</b><span>highest cap</span></div>
+      </div>
+      <div class="rule">
+        <div><h3>Some USDC always stays in the vault</h3><p>Small withdrawals are paid from idle cash and never touch a venue.</p></div>
+        <div class="val"><b class="num" id="rIdle">2%</b><span>minimum idle</span></div>
+      </div>
+      <div class="rule">
+        <div><h3>Money only goes where it can come back today</h3><p>After a deposit into a venue, that venue must be able to pay back the whole position immediately. A fully borrowed-out pool or a paused market cannot receive funds. And if one venue freezes later, withdrawals are served from the others instead of failing.</p></div>
+        <div class="val"><b class="num" id="rExit">100%</b><span>of our position exitable</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="cTitle">
+    <h2 class="sec" id="cTitle">Contracts</h2>
+    <div class="contracts">
+      <ul class="addr" id="addrList">
+        <li><span>Vault</span><a class="mono" id="vaultLink" href="#">not deployed yet</a></li>
+      </ul>
+      <div class="honest">
+        <h3>What you should know</h3>
+        <p>Not audited yet. The vault is built on the BoringDeFi contracts already running on Ethereum; the Arbitrum guards and the Compound adapter are new. Start small.</p>
+        <p>Yield comes from lending USDC to borrowers in the venues above. It is variable, and those protocols carry their own smart-contract risk.</p>
+        <p>Source, tests and the deploy script: <a href="https://github.com/medicinos/boringdefi-arbitrum" id="ghLink">GitHub</a>.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer><div class="wrap"><span>boringdefi · non-custodial · Arbitrum One</span><span>APY from DefiLlama (base only, rewards ignored). Positions from chain.</span></div></footer>
+
+<script>
+"use strict";
+// ── config ────────────────────────────────────────────────────────────────
+// Set after `forge script script/DeployArbitrum.s.sol`. Deliberately NOT overridable from the URL:
+// a "?vault=0x…" link would let anyone point depositors' approvals at their own contract.
+const VAULT = "";
+const RPC = "https://arb1.arbitrum.io/rpc";
+const CHAIN_HEX = "0xa4b1";
+const USDC = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
+const VENUES = [
+  { key:"0x794a61358D6845594F94dc1DB02A252b5b4814aD", name:"Aave v3", kind:"Lending pool", llama:"d9fa8e14-0447-4207-9ae8-7810199dfa1f", type:"aave", aToken:"0x724dc807b04555b71ed48a6896b6F41593b8C637" },
+  { key:"0x1A996cb54bb95462040408C06122D45D6Cdb6096", name:"Fluid", kind:"fUSDC lending", llama:"4c45cc9e-e1a4-43c9-8a3d-687d96abb07c", type:"4626" },
+  { key:"0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf", name:"Compound III", kind:"cUSDCv3 market", llama:"d9c395b9-00d0-4426-a6b3-572a6dd68e54", type:"comet" },
+  { key:"0x5c0C306Aaa9F877de636f4d5822cA9F2E81563BA", name:"Morpho · Steakhouse", kind:"Curated vault", llama:"c13f1940-9965-4eee-b7e8-af785591ceda", type:"4626" },
+  { key:"0x7e97fa6893871A2751B5fE961978DCCb2c201E65", name:"Morpho · Gauntlet", kind:"Curated vault", llama:"aebb9f47-d15b-4671-8fe3-debb6e913ae2", type:"4626" },
+];
+const VAULT_ABI = [
+  "function allocationReport() view returns (address[] venues,uint256[] assets,uint256[] withdrawable,uint256[] capBps,uint256 idle,uint256 total)",
+  "function minIdleBps() view returns (uint256)", "function minExitBps() view returns (uint256)",
+  "function performanceFeeBps() view returns (uint256)", "function paused() view returns (bool)",
+  "function balanceOf(address) view returns (uint256)", "function costBasisAssets(address) view returns (uint256)",
+  "function previewRedeemNet(address owner,uint256 shares) view returns (uint256)",
+  "function maxWithdraw(address owner) view returns (uint256)",
+  "function sharesForNetWithdraw(address owner,uint256 netAssets) view returns (uint256)",
+  "function convertToAssets(uint256) view returns (uint256)",
+  "function deposit(uint256 assets,address receiver) returns (uint256)",
+  "function redeem(uint256 shares,address receiver,address owner) returns (uint256)",
+];
+const ERC20_ABI = ["function balanceOf(address) view returns (uint256)","function allowance(address,address) view returns (uint256)","function approve(address,uint256) returns (bool)","function totalSupply() view returns (uint256)"];
+const ADAPTER_ABI = ["function targetVault() view returns (address)","function pool() view returns (address)","function comet() view returns (address)"];
+
+const $ = (id) => document.getElementById(id);
+const read = new ethers.JsonRpcProvider(RPC, 42161, { staticNetwork: true });
+const fmt = (x, d = 2) => Number(ethers.formatUnits(x, 6)).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const ICON_OK = '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICON_NO = '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+let state = { apy: {}, report: null, fee: 100, minIdle: 200, minExit: 10000, paused: false };
+let wallet = { provider: null, signer: null, me: null };
+let mode = "deposit";
+
+function setMsg(text, kind = "info") { const m = $("msg"); m.textContent = text; m.className = "msg " + kind; }
+
+// ── market data ──────────────────────────────────────────────────────────
+async function loadApys() {
+  await Promise.all(VENUES.map(async (v) => {
+    try {
+      const r = await fetch("https://yields.llama.fi/chart/" + v.llama);
+      const j = await r.json();
+      const last = j.data[j.data.length - 1];
+      state.apy[v.key.toLowerCase()] = { apy: last.apyBase ?? last.apy, tvl: last.tvlUsd };
+    } catch (e) { /* APY shown as n/a */ }
+  }));
+}
+
+async function venueSize(v) {
+  const usdc = new ethers.Contract(USDC, ERC20_ABI, read);
+  if (v.type === "aave") {
+    const [supplied, cash] = await Promise.all([new ethers.Contract(v.aToken, ERC20_ABI, read).totalSupply(), usdc.balanceOf(v.aToken)]);
+    return { size: supplied, cash };
+  }
+  if (v.type === "comet") {
+    const [supplied, cash] = await Promise.all([new ethers.Contract(v.key, ERC20_ABI, read).totalSupply(), usdc.balanceOf(v.key)]);
+    return { size: supplied, cash };
+  }
+  const size = await new ethers.Contract(v.key, ["function totalAssets() view returns (uint256)"], read).totalAssets();
+  return { size, cash: null };
+}
+
+async function adapterVenue(adapter) {
+  const c = new ethers.Contract(adapter, ADAPTER_ABI, read);
+  for (const fn of ["targetVault", "pool", "comet"]) {
+    try { return (await c[fn]()).toLowerCase(); } catch (e) { /* try next getter */ }
+  }
+  return null;
+}
+
+async function loadVault() {
+  if (!VAULT) { $("notDeployed").hidden = false; return; }
+  const v = new ethers.Contract(VAULT, VAULT_ABI, read);
+  const [rep, minIdle, minExit, fee, paused] = await Promise.all([v.allocationReport(), v.minIdleBps(), v.minExitBps(), v.performanceFeeBps(), v.paused()]);
+  const venueOf = await Promise.all(rep.venues.map(adapterVenue));
+  state.report = rep.venues.map((a, i) => ({ adapter: a, venue: venueOf[i], assets: rep.assets[i], withdrawable: rep.withdrawable[i], cap: Number(rep.capBps[i]) }));
+  state.idle = rep.idle; state.total = rep.total;
+  state.minIdle = Number(minIdle); state.minExit = Number(minExit); state.fee = Number(fee); state.paused = paused;
+  $("vaultLink").textContent = short(VAULT);
+  $("vaultLink").href = "https://arbiscan.io/address/" + VAULT;
+  const list = $("addrList");
+  list.querySelectorAll(".adapter").forEach((n) => n.remove());
+  state.report.forEach((r) => {
+    const meta = VENUES.find((x) => x.key.toLowerCase() === r.venue);
+    const li = document.createElement("li");
+    li.className = "adapter";
+    li.innerHTML = `<span>${esc(meta ? meta.name : "Adapter")} adapter</span><a class="mono" href="https://arbiscan.io/address/${esc(r.adapter)}">${esc(short(r.adapter))}</a>`;
+    list.appendChild(li);
+  });
+}
+
+function renderStats() {
+  const pct = (bps) => (bps / 100).toLocaleString("en-US", { maximumFractionDigits: 1 }) + "%";
+  $("rIdle").textContent = pct(state.minIdle);
+  $("rExit").textContent = pct(state.minExit);
+  $("feeFact").textContent = pct(state.fee) + " fee on profit only";
+  if (state.report) {
+    $("rCap").textContent = pct(Math.max(...state.report.map((r) => r.cap)));
+    $("sTvl").textContent = "$" + fmt(state.total, 0);
+    const total = Number(state.total);
+    let w = 0;
+    state.report.forEach((r) => { const a = state.apy[r.venue]; if (a) w += Number(r.assets) * a.apy; });
+    $("sApy").textContent = total ? (w / total).toFixed(2) + "%" : "-";
+    $("sIdle").textContent = total ? ((Number(state.idle) / total) * 100).toFixed(1) + "%" : "-";
+    $("sVenues").textContent = state.report.length;
+  } else {
+    const apys = Object.values(state.apy).map((a) => a.apy).filter((x) => x != null);
+    $("sTvl").textContent = "Pre-launch";
+    $("sApy").textContent = apys.length ? Math.min(...apys).toFixed(1) + "-" + Math.max(...apys).toFixed(1) + "%" : "-";
+    $("sApyK").textContent = "base APY across venues";
+    $("sIdle").textContent = (state.minIdle / 100) + "%";
+  }
+}
+
+async function renderVenues() {
+  const table = $("vtable");
+  const rows = await Promise.all(VENUES.map(async (v) => {
+    let s = { size: null, cash: null };
+    try { s = await venueSize(v); } catch (e) { /* shown as n/a */ }
+    return { v, s };
+  }));
+  const total = state.report ? Number(state.total) : 0;
+  let html = "";
+  for (const { v, s } of rows) {
+    const k = v.key.toLowerCase();
+    const a = state.apy[k];
+    const pos = state.report ? state.report.find((r) => r.venue === k) : null;
+    const share = pos && total ? Number(pos.assets) / total : 0;
+    const cap = pos ? pos.cap / 10000 : null;
+    let exit;
+    if (pos && pos.assets > 0n) {
+      const ok = pos.withdrawable * 10000n >= pos.assets * BigInt(state.minExit);
+      exit = `<span class="exit ${ok ? "ok" : "no"}">${ok ? ICON_OK : ICON_NO}$${fmt(pos.withdrawable, 0)}</span>`;
+    } else if (s.cash != null) {
+      exit = `<span class="exit na">$${(Number(ethers.formatUnits(s.cash, 6)) / 1e6).toFixed(1)}M free</span>`;
+    } else {
+      exit = `<span class="exit na">${pos ? "no position" : "checked on deposit"}</span>`;
+    }
+    html += `<div class="vrow">
+      <div class="vname">${esc(v.name)}<small>${esc(v.kind)}</small></div>
+      <div class="bcell"><div class="bar" role="img" aria-label="${(share * 100).toFixed(1)}% of vault${cap != null ? ", cap " + (cap * 100).toFixed(0) + "%" : ""}">
+        <div class="fill" style="transform:scaleX(${share.toFixed(4)})"></div>${cap != null ? `<div class="cap" style="left:calc(${(cap * 100).toFixed(2)}% - 1px)"></div>` : ""}</div>
+        <div class="bar-l num"><span>${pos ? (share * 100).toFixed(1) + "% · $" + fmt(pos.assets, 0) : "not in vault"}</span><span>${cap != null ? "cap " + (cap * 100).toFixed(0) + "%" : ""}</span></div></div>
+      <div class="r num apy">${a && a.apy != null ? a.apy.toFixed(2) + "%" : "n/a"}</div>
+      <div class="r num size">${s.size != null ? "$" + (Number(ethers.formatUnits(s.size, 6)) / 1e6).toFixed(1) + "M" : "n/a"}</div>
+      <div class="r ex">${exit}</div>
+    </div>`;
+  }
+  html += `<div class="vfoot"><span>${state.report ? "Idle cash in vault: $" + fmt(state.idle, 0) : "Vault positions appear here once the vault is live."}</span><span>Updated ${new Date().toLocaleTimeString()}</span></div>`;
+  table.querySelectorAll(".vrow,.vfoot").forEach((n) => n.remove());
+  table.insertAdjacentHTML("beforeend", html);
+}
+
+// ── wallet ───────────────────────────────────────────────────────────────
+async function connect() {
+  if (!window.ethereum) { setMsg("No browser wallet found. Install one (e.g. Rabby or MetaMask) and reload.", "bad"); return; }
+  try {
+    wallet.provider = new ethers.BrowserProvider(window.ethereum);
+    await wallet.provider.send("eth_requestAccounts", []);
+    await ensureArbitrum();
+    wallet.signer = await wallet.provider.getSigner();
+    wallet.me = await wallet.signer.getAddress();
+    $("connectBtn").textContent = short(wallet.me);
+    $("acctSub").textContent = "Connected on Arbitrum One.";
+    await refreshAccount();
+  } catch (e) { setMsg(explain(e), "bad"); }
+}
+
+async function ensureArbitrum() {
+  const id = await wallet.provider.send("eth_chainId", []);
+  if (id === CHAIN_HEX) return;
+  try { await wallet.provider.send("wallet_switchEthereumChain", [{ chainId: CHAIN_HEX }]); }
+  catch (e) {
+    if (e && (e.code === 4902 || (e.error && e.error.code === 4902))) {
+      await wallet.provider.send("wallet_addEthereumChain", [{ chainId: CHAIN_HEX, chainName: "Arbitrum One", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: [RPC], blockExplorerUrls: ["https://arbiscan.io"] }]);
+    } else throw e;
+  }
+  wallet.provider = new ethers.BrowserProvider(window.ethereum);
+}
+
+async function refreshAccount() {
+  if (!wallet.me) return;
+  const usdc = new ethers.Contract(USDC, ERC20_ABI, read);
+  wallet.bal = await usdc.balanceOf(wallet.me);
+  $("wBal").textContent = fmt(wallet.bal) + " USDC";
+  if (VAULT) {
+    const v = new ethers.Contract(VAULT, VAULT_ABI, read);
+    const shares = await v.balanceOf(wallet.me);
+    const [net, basis, gross] = await Promise.all([v.previewRedeemNet(wallet.me, shares), v.costBasisAssets(wallet.me), v.convertToAssets(shares)]);
+    wallet.shares = shares; wallet.net = net;
+    $("wPos").textContent = fmt(net) + " USDC";
+    $("wProfit").textContent = (gross > basis ? "+" + fmt(gross - basis) : "0.00") + " USDC";
+  }
+  setMode(mode);
+}
+
+function setMode(m) {
+  mode = m;
+  $("tabDep").setAttribute("aria-selected", m === "deposit");
+  $("tabWd").setAttribute("aria-selected", m === "withdraw");
+  $("amtLabel").textContent = m === "deposit" ? "Deposit amount" : "Withdraw amount";
+  const btn = $("actBtn");
+  if (!wallet.me) { btn.textContent = "Connect wallet"; btn.disabled = false; return; }
+  btn.textContent = m === "deposit" ? "Deposit USDC" : "Withdraw USDC";
+  btn.disabled = !VAULT || state.paused && m === "deposit";
+  if (!VAULT) setMsg("Deposits open once the vault address is published here.", "info");
+  else if (state.paused && m === "deposit") setMsg("The vault is paused: deposits are off, withdrawals still work.", "info");
+}
+
+async function act() {
+  if (!wallet.me) return connect();
+  const raw = $("amt").value.trim().replace(",", ".");
+  let amt;
+  try { amt = ethers.parseUnits(raw || "0", 6); } catch (e) { setMsg("Enter an amount like 250 or 250.50.", "bad"); return; }
+  if (amt <= 0n) { setMsg("Enter an amount above zero.", "bad"); return; }
+  const btn = $("actBtn"); btn.disabled = true;
+  try {
+    await ensureArbitrum();
+    wallet.signer = await wallet.provider.getSigner();
+    const v = new ethers.Contract(VAULT, VAULT_ABI, wallet.signer);
+    if (mode === "deposit") {
+      if (amt > wallet.bal) throw new Error("You have " + fmt(wallet.bal) + " USDC in this wallet.");
+      const usdc = new ethers.Contract(USDC, ERC20_ABI, wallet.signer);
+      const allowance = await usdc.allowance(wallet.me, VAULT);
+      if (allowance < amt) {
+        setMsg("Step 1 of 2: approve exactly " + fmt(amt) + " USDC for the vault…");
+        await (await usdc.approve(VAULT, amt)).wait();
+      }
+      setMsg(allowance < amt ? "Step 2 of 2: deposit…" : "Depositing…");
+      const tx = await v.deposit(amt, wallet.me, { gasLimit: await headroom(v.deposit, [amt, wallet.me]) }); await tx.wait();
+      setMsg("Deposited " + fmt(amt) + " USDC.", "ok");
+    } else {
+      const reader = new ethers.Contract(VAULT, VAULT_ABI, read);
+      const maxNet = await reader.maxWithdraw(wallet.me);
+      if (maxNet === 0n) throw new Error("This wallet has nothing in the vault.");
+      const shares = amt >= maxNet ? wallet.shares : await reader.sharesForNetWithdraw(wallet.me, amt);
+      setMsg("Withdrawing…");
+      const tx = await v.redeem(shares, wallet.me, wallet.me, { gasLimit: await headroom(v.redeem, [shares, wallet.me, wallet.me]) }); await tx.wait();
+      setMsg("Withdrawn to your wallet.", "ok");
+    }
+    $("amt").value = "";
+    await Promise.all([refreshAccount(), loadVault().then(renderVenues).then(renderStats)]);
+  } catch (e) { setMsg(explain(e), "bad"); }
+  finally { btn.disabled = false; setMode(mode); }
+}
+
+// Withdrawals read each venue inside try/catch. A wallet that sends exactly the estimated
+// gas can starve those sub-calls (63/64 rule), so every money call gets 30 % headroom.
+async function headroom(fn, args) {
+  const est = await fn.estimateGas(...args);
+  return (est * 13n) / 10n + 50000n;
+}
+
+function explain(e) {
+  const s = (e && (e.shortMessage || e.message)) || String(e);
+  if (/user rejected|denied|ACTION_REJECTED/i.test(s)) return "You cancelled it in the wallet. Nothing was sent.";
+  if (/insufficient funds/i.test(s)) return "Not enough ETH on Arbitrum for gas (a few cents is enough).";
+  if (/EnforcedPause/i.test(s)) return "The vault is paused: deposits are off, withdrawals still work.";
+  return s.length > 180 ? s.slice(0, 180) + "…" : s;
+}
+
+$("connectBtn").addEventListener("click", connect);
+$("actBtn").addEventListener("click", act);
+$("tabDep").addEventListener("click", () => setMode("deposit"));
+$("tabWd").addEventListener("click", () => setMode("withdraw"));
+$("maxBtn").addEventListener("click", () => {
+  const x = mode === "deposit" ? wallet.bal : wallet.net;
+  if (x != null) $("amt").value = ethers.formatUnits(x, 6);
+});
+if (window.ethereum) {
+  window.ethereum.on?.("accountsChanged", () => location.reload());
+  window.ethereum.on?.("chainChanged", () => wallet.me && refreshAccount());
+}
+
+function renderVenueAddrs() {
+  const list = $("addrList");
+  const head = document.createElement("li");
+  head.innerHTML = '<span style="color:var(--ink-3);font-size:.8125rem;margin-top:8px">Venue contracts the vault may use</span>';
+  list.appendChild(head);
+  VENUES.forEach((v) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span>${esc(v.name)}</span><a class="mono" href="https://arbiscan.io/address/${esc(v.key)}">${esc(short(v.key))}</a>`;
+    list.appendChild(li);
+  });
+}
+
+(async () => {
+  try { await Promise.all([loadApys(), loadVault()]); }
+  catch (e) { setMsg("Could not read the vault from Arbitrum right now. Refresh in a minute.", "bad"); }
+  renderStats();
+  renderVenueAddrs();
+  await renderVenues();
+  setMode("deposit");
+  $("ghLink").href = "https://github.com/medicinos/boringdefi-arbitrum";
+})();
+</script>
+</body>
+</html>
