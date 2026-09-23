@@ -272,7 +272,7 @@
 // ── config ────────────────────────────────────────────────────────────────
 // Set after `forge script script/DeployArbitrum.s.sol`. Deliberately NOT overridable from the URL:
 // a "?vault=0x…" link would let anyone point depositors' approvals at their own contract.
-const VAULT = "";
+const VAULT = "0x3cA6Ee7A5d64BCF3f23955c1ed9A66E332e60672";
 const RPC = "https://arb1.arbitrum.io/rpc";
 const CHAIN_HEX = "0xa4b1";
 const USDC = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
@@ -301,6 +301,7 @@ const ADAPTER_ABI = ["function targetVault() view returns (address)","function p
 const $ = (id) => document.getElementById(id);
 const read = new ethers.JsonRpcProvider(RPC, 42161, { staticNetwork: true });
 const fmt = (x, d = 2) => Number(ethers.formatUnits(x, 6)).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const money = (x) => fmt(x, Number(x) < 1e9 ? 2 : 0); // cents while the vault is small
 const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const ICON_OK = '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -374,7 +375,7 @@ function renderStats() {
   $("feeFact").textContent = pct(state.fee) + " fee on profit only";
   if (state.report) {
     $("rCap").textContent = pct(Math.max(...state.report.map((r) => r.cap)));
-    $("sTvl").textContent = "$" + fmt(state.total, 0);
+    $("sTvl").textContent = "$" + money(state.total);
     const total = Number(state.total);
     let w = 0;
     state.report.forEach((r) => { const a = state.apy[r.venue]; if (a) w += Number(r.assets) * a.apy; });
@@ -408,7 +409,7 @@ async function renderVenues() {
     let exit;
     if (pos && pos.assets > 0n) {
       const ok = pos.withdrawable * 10000n >= pos.assets * BigInt(state.minExit);
-      exit = `<span class="exit ${ok ? "ok" : "no"}">${ok ? ICON_OK : ICON_NO}$${fmt(pos.withdrawable, 0)}</span>`;
+      exit = `<span class="exit ${ok ? "ok" : "no"}">${ok ? ICON_OK : ICON_NO}$${money(pos.withdrawable)}</span>`;
     } else if (s.cash != null) {
       exit = `<span class="exit na">$${(Number(ethers.formatUnits(s.cash, 6)) / 1e6).toFixed(1)}M free</span>`;
     } else {
@@ -418,13 +419,13 @@ async function renderVenues() {
       <div class="vname">${esc(v.name)}<small>${esc(v.kind)}</small></div>
       <div class="bcell"><div class="bar" role="img" aria-label="${(share * 100).toFixed(1)}% of vault${cap != null ? ", cap " + (cap * 100).toFixed(0) + "%" : ""}">
         <div class="fill" style="transform:scaleX(${share.toFixed(4)})"></div>${cap != null ? `<div class="cap" style="left:calc(${(cap * 100).toFixed(2)}% - 1px)"></div>` : ""}</div>
-        <div class="bar-l num"><span>${pos ? (share * 100).toFixed(1) + "% · $" + fmt(pos.assets, 0) : "not in vault"}</span><span>${cap != null ? "cap " + (cap * 100).toFixed(0) + "%" : ""}</span></div></div>
+        <div class="bar-l num"><span>${pos ? (share * 100).toFixed(1) + "% · $" + money(pos.assets) : "not in vault"}</span><span>${cap != null ? "cap " + (cap * 100).toFixed(0) + "%" : ""}</span></div></div>
       <div class="r num apy">${a && a.apy != null ? a.apy.toFixed(2) + "%" : "n/a"}</div>
       <div class="r num size">${s.size != null ? "$" + (Number(ethers.formatUnits(s.size, 6)) / 1e6).toFixed(1) + "M" : "n/a"}</div>
       <div class="r ex">${exit}</div>
     </div>`;
   }
-  html += `<div class="vfoot"><span>${state.report ? "Idle cash in vault: $" + fmt(state.idle, 0) : "Vault positions appear here once the vault is live."}</span><span>Updated ${new Date().toLocaleTimeString()}</span></div>`;
+  html += `<div class="vfoot"><span>${state.report ? "Idle cash in vault: $" + money(state.idle) : "Vault positions appear here once the vault is live."}</span><span>Updated ${new Date().toLocaleTimeString()}</span></div>`;
   table.querySelectorAll(".vrow,.vfoot").forEach((n) => n.remove());
   table.insertAdjacentHTML("beforeend", html);
 }
